@@ -8,6 +8,15 @@ import stat
 import time
 
 
+def read_regular_json(path):
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > 65536:
+            raise ValueError('JSON must be a regular file <= 64 KiB')
+        return json.loads(handle.read(65537))
+
+
 def validate(data, job_id, scoped=False, now=None):
     now = time.time() if now is None else now
     if not isinstance(data, dict) or data.get('schema_version', 1) != 1:

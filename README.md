@@ -94,6 +94,19 @@ complete schema/discovery rules, see [PROGRESS.md](PROGRESS.md).
 
 Existing jobs with `configs/<job-name>.json` containing matching `id` and `steps`,
 and `runs/<job-name>/metrics.jsonl` containing `step`, work without changes.
+If a wrapper job name differs from the run ID, explicitly bind the job to its
+actual configuration (no training restart required):
+
+```bash
+python3 ~/.local/share/skynet-monitor/bind_run.py \
+  --job-id YOUR_JOB_ID --config /path/to/campaign/configs/actual-run.json
+```
+
+For future submissions, call the same command inside your batch script without
+`--job-id`; Slurm identity is detected automatically. A per-job `run.json`
+binding points to the exact configuration and its `runs/<id>/metrics.jsonl`.
+Identity is checked before reading; standard `progress.json` still has priority.
+
 An optional `auto_report.py --pid CHILD_PID --config CONFIG.json` sidecar can
 watch this layout; it exits when the workload exits and never signals it.
 

@@ -61,18 +61,35 @@ def allocated_gpu(info):
 def training_progress(job):
     """Read the exact run's config/metrics; never load a checkpoint or infer a target from its name."""
     try:
-        info = run(['scontrol', 'show', 'job', job['id'], '-o'])
-        match = re.search(r'(?:^|\s)WorkDir=(.*?)(?=\s\w+=|$)', info)
-        if not match or '/' in job['name'] or job['name'] in {'.', '..'}:
-            return dict(error='No supported run directory')
-        root = Path(match[1])
-        config = json.loads((root / 'configs' / (job['name'] + '.json')).read_text())
-        if config.get('id') != job['name']:
+        binding = Path.home()/'.local/state/skynet-monitor/jobs'/job['id']/'run.json'
+        from protocol import read_regular_json
+        try:
+            bound = read_regular_json(binding)
+        except FileNotFoundError:
+            bound = None
+        if bound is not None:
+            if not isinstance(bound, dict) or bound.get('job_id') != job['id']:
+                return dict(error='Run binding identity mismatch')
+            config_path = Path(bound['config'])
+            run_id = bound['run_id']
+            if not config_path.is_absolute() or config_path.parent.name != 'configs':
+                return dict(error='Invalid bound config path')
+            root = config_path.parent.parent
+        else:
+            info = run(['scontrol', 'show', 'job', job['id'], '-o'])
+            match = re.search(r'(?:^|\s)WorkDir=(.*?)(?=\s\w+=|$)', info)
+            if not match:return dict(error='No supported run directory')
+            root, run_id = Path(match[1]), job['name']
+            config_path = root / 'configs' / (run_id + '.json')
+        if not isinstance(run_id,str) or not run_id or '/' in run_id or run_id in {'.', '..'}:
+            return dict(error='Invalid run identity')
+        config = read_regular_json(config_path)
+        if config.get('id') != run_id:
             return dict(error='Run identity mismatch')
         target = config.get('steps')
         if not isinstance(target, int) or target <= 0:
             return dict(error='No step target in config')
-        metrics = root / 'runs' / job['name'] / 'metrics.jsonl'
+        metrics = root / 'runs' / run_id / 'metrics.jsonl'
         with metrics.open('rb') as f:
             f.seek(0, 2)
             f.seek(max(0, f.tell() - 65536))
@@ -86,11 +103,11 @@ def training_progress(job):
                 step = record.get('step')
                 if isinstance(step, int) and step >= 0:
                     return dict(step=step, target=target, updated=modified,
-                                source=str(metrics), loss=record.get('loss'))
+                                source=str(metrics), loss=record.get('loss'), unit='steps')
             except (ValueError, AttributeError):
                 continue
         return dict(error='Waiting for metrics')
-    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as e:
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.TimeoutExpired) as e:
         return dict(error='Progress unavailable: ' + str(e))
 
 
