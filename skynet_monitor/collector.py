@@ -81,6 +81,11 @@ def training_progress(job):
             if not match:return dict(error='No supported run directory')
             root, run_id = Path(match[1]), job['name']
             config_path = root / 'configs' / (run_id + '.json')
+            if not config_path.is_file():
+                from chain_progress import discover_config
+                submitted = run(['scontrol', 'write', 'batch_script', job['id'], '-'])
+                config_path, run_id = discover_config(submitted, root)
+                root = config_path.parent.parent
         if not isinstance(run_id,str) or not run_id or '/' in run_id or run_id in {'.', '..'}:
             return dict(error='Invalid run identity')
         config = read_regular_json(config_path)

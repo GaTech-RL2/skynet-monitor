@@ -94,18 +94,44 @@ complete schema/discovery rules, see [PROGRESS.md](PROGRESS.md).
 
 Existing jobs with `configs/<job-name>.json` containing matching `id` and `steps`,
 and `runs/<job-name>/metrics.jsonl` containing `step`, work without changes.
-If a wrapper job name differs from the run ID, explicitly bind the job to its
-actual configuration (no training restart required):
+### Wrapper and chained jobs
+
+When the Slurm job name differs from the actual run, the monitor automatically
+reads the **submitted batch script stored by Slurm** (not a possibly edited
+script on disk). No launcher modification or manual binding is needed for:
+
+```bash
+export CAMPAIGN_ROOT=/path/to/campaign
+export RUN_ID=actual-run
+exec bash "$CAMPAIGN_ROOT/scripts/chain.sbatch"
+```
+
+or a static explicit configuration:
+
+```bash
+CONFIG=/path/to/campaign/configs/actual-run.json
+exec python3 train.py --config "$CONFIG"
+```
+
+Literal assignments, known variable expansion, quoted paths and a simple `cd`
+are supported. The configuration must use the same `configs/*.json` and
+`runs/<id>/metrics.jsonl` layout. This is conservative static discovery, **not a
+shell interpreter**: it does not execute/source scripts, expand command
+substitutions, infer stage selection or scan directories for the newest run.
+Conditional wrappers, environment sourced from other files, array-indexed
+configurations and ambiguous/multiple commands require standard `progress.json`
+or an explicit binding. Such cases stay unavailable rather than guessing.
+
+For an unsupported wrapper you can still bind its exact configuration:
 
 ```bash
 python3 ~/.local/share/skynet-monitor/bind_run.py \
   --job-id YOUR_JOB_ID --config /path/to/campaign/configs/actual-run.json
 ```
 
-For future submissions, call the same command inside your batch script without
-`--job-id`; Slurm identity is detected automatically. A per-job `run.json`
-binding points to the exact configuration and its `runs/<id>/metrics.jsonl`.
-Identity is checked before reading; standard `progress.json` still has priority.
+Priority: standard `progress.json`, explicit per-job binding, matching job-name
+configuration, then automatic submitted-script discovery. All sources retain
+identity checks and stale-progress detection.
 
 An optional `auto_report.py --pid CHILD_PID --config CONFIG.json` sidecar can
 watch this layout; it exits when the workload exits and never signals it.
