@@ -15,6 +15,14 @@ This is an independent community project, not an official cluster service.
 No dataset-specific adapters, batch dashboards or private experiment assets
 are included. Installing it does not modify your job launchers.
 
+## New users and coding agents
+
+Follow [TRAINING.md](TRAINING.md) for the end-to-end installation, training-loop
+integration, normal Slurm submission and verification workflow. Give your agent
+the repository URL and [AGENTS.md](AGENTS.md); no author-specific setup is needed.
+Jobs are discovered automatically; arbitrary trainers need a one-time progress
+integration to provide completed work and totals.
+
 ## Requirements
 
 On the login node: Linux, Python 3.10+, Bash, `squeue`, `scontrol`, and user
